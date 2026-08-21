@@ -1,0 +1,27 @@
+{
+  "name": "siemens-qcp",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./src/main.js",
+  "scripts": {
+    "build": "rollup -c",
+    "buildDev": "rollup -c rollup.config.dev.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/preset-env": "^7.29.7",
+    "@babel/register": "^7.29.7",
+    "@rollup/plugin-terser": "^1.0.0",
+    "babel-cli": "^6.26.0",
+    "babel-core": "^6.26.3",
+    "babel-preset-env": "^1.7.0",
+    "gulp": "^5.0.1",
+    "gulp-babel": "^8.1.0",
+    "jsforce": "^3.10.19",
+    "rollup": "^4.62.4",
+    "uglify-js": "^3.19.3"
+  }
+}
