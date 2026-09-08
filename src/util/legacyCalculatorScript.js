@@ -129,7 +129,7 @@ fieldName === "Global_Pricing__c" &&
 object.Global__c &&
 object.Global__c.toLowerCase() === "no"
 ) {
-return true;
+return false;
 }
 
 // CR-019680 Hide fields for Direct Quote
