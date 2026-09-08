@@ -23,7 +23,7 @@ function validateQuoteLinePromo(quoteLineModels, issueLineObj) {
                     || (item.record["SBQQ__EffectiveStartDate__c"] > item.record["Promo_Code_End_Date__c"])
                     || !containsSalesOrg(item.record["Promo_Code_Sales_Org__c"], item.record["Sales_Org__c"])) {
 
-                    qlValidate = false;
+                    //qlValidate = false;
                     issueLineObj.lineName = item.record["SBQQ__Number__c"];
                     issueLineObj.productName = item.record["SBQQ__ProductName__c"];
                     return false;
