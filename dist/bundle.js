@@ -105,6 +105,14 @@ return true;
 return false;
 }
 
+//CR-033672 - hide fields for CPQ MRO Quote
+// Replace T2X_Replacement__c with Convert_Transform_To__c - 035628 // Replace Convert_Transform_To__c with Sales_Initiative__c 038084
+if(
+(object.SBQQ__Quote__r.Sub_Type__c == "Maintenance Renewal") && (fieldName === "Entitlement__c" || fieldName === "Sales_Initiative__c" || fieldName === "Product_Support_Level__c" ||fieldName === "Provisioning_Lead_Time__c" ||fieldName === "O2O_Attribute_Percent__c")
+){
+return false;
+}
+
 // CR-15165: hide following fields if access range does not have any applicable values
 if (
 (fieldName === "Access_Range__c" || fieldName === "FL_HOSTNAME1__c" || fieldName === "FL_HOSTNAME2__c" || fieldName === "FL_HOSTNAME3__c"
@@ -131,21 +139,22 @@ if (hidefields.has(fieldName)) {
 return false;
 }
 }
+//CR26865 - hide Monthly Cap if Charge type is non USage
+if( (object.SBQQ__ChargeType__c == undefined ||
+object.SBQQ__ChargeType__c != "Usage" )&& fieldName === "Cap__c"){
+return false;
+}
 
 //027576- start
 if (object.Cost_Model__c != "CPC" && (fieldName == "Included_Geos__c" || fieldName == "Excluded_Geos__c")) {
 return false;
 }
+//027576- end
 
 //CR-035202
 const amendmentRestrictedFields = new Set([ 'SBQQ__Quantity__c']);
-if (amendmentRestrictedFields.has(fieldName) && object.SBQQ__Quote__r.SBQQ__Type__c === "Amendment" &&object.SBQQ__UpgradedSubscription__c != null && (object.CPQ_License_Type__c === "MAINT" || object.CPQ_License_Type__c === "EXTEND")) {
-return false;
-}
-
-//CR26865 - hide Monthly Cap if Charge type is non USage
-if( (object.SBQQ__ChargeType__c == undefined ||
-object.SBQQ__ChargeType__c != "Usage" )&& fieldName === "Cap__c"){
+if (amendmentRestrictedFields.has(fieldName) && object.SBQQ__Quote__r.SBQQ__Type__c === "Amendment" &&object.SBQQ__UpgradedSubscription__c != null &&
+(object.CPQ_License_Type__c === "MAINT" || object.CPQ_License_Type__c === "EXTEND")) {
 return false;
 }
 //CR-030274
@@ -160,83 +169,99 @@ return false;
 if (objectName === 'Quote__c' && object.SBQQ__Type__c === 'Amendment' && fieldName === 'SBQQ__TargetCustomerAmount__c') {
 return false;
 }
+
 return true;
 }
 
-function isFieldEditableForObject(fieldName, object, conn, objectName) {
+async function isFieldEditableForObject(fieldName, object, conn, objectName) {
 if (objectName === "QuoteLine__c") {
-
-
-// Added Below Condition As part of CR:031935
-if((object.SBQQ__RequiredBy__r != null || object.SBQQ__ProductOption__c != null || object.SBQQ__OptionLevel__c >0)
-&& fieldName === 'Entitlement_Group__c' && object.SBQQ__Quote__r.ERP_Type__c === 'Sherpa X' ){
-return false;
-}
-
-// CR-035269
-if((fieldName === "SBQQ__Quantity__c" || fieldName === "Install__c" || fieldName === "CPQ_License_Type__c") && object.SBQQ__Source__c && (object.CPQ_License_Type__c === "MAINT" || object.CPQ_License_Type__c === "TESTM" || object.CPQ_License_Type__c === "BKUPM") && object.SBQQ__Quote__r.Sub_Type__c !== "Maintenance Renewal") { return false; }
+    
+         // Added Below Condition As part of CR:031935
+         if((object.SBQQ__RequiredBy__r != null || object.SBQQ__ProductOption__c != null || object.SBQQ__OptionLevel__c >0) 
+             && fieldName === 'Entitlement_Group__c' && object.SBQQ__Quote__r.ERP_Type__c === 'Sherpa X' ){
+            return false; 
+         }
+         // CR - 35007 Added to keep Billing frequency as Monthly
+            if( fieldName=='SBQQ__BillingFrequency__c' &&
+        object.SBQQ__Quote__r.SBQQ__Status__c=='Draft' &&
+        object.SBQQ__Quote__r.ERP_Type__c=='Sherpa X' &&
+        object.Cost_Model__c!='CPC' &&
+        object.Cost_Model__c!='CPM' &&
+        object.SBQQ__Quote__r.SBQQ__Account__r.Org_Id__c)
+        {
+            return false;
+        } 
+        
+        // CR-035269
+        if((fieldName === "SBQQ__Quantity__c" || fieldName === "Install__c" || fieldName === "CPQ_License_Type__c") && object.SBQQ__Source__c && (object.CPQ_License_Type__c === "MAINT" || object.CPQ_License_Type__c === "TESTM" || object.CPQ_License_Type__c === "BKUPM") && object.SBQQ__Quote__r.Sub_Type__c !== "Maintenance Renewal") { return false; }
 
 //CR - 034900
 if(fieldName === "Support_Level__c" && (object.CPQ_License_Type__c === "MAINT" || object.CPQ_License_Type__c === "EXTEND" || object.CPQ_License_Type__c === "TEST" || object.CPQ_License_Type__c === "TESTM"|| object.CPQ_License_Type__c === "BKUP" || object.CPQ_License_Type__c === "BKUPM" )){
 return false;
 }
-
+//CR-037732
+if(fieldName === "Custom_Name__c" && object.External_Material_Group__c != "FPG" && object.External_Material_Group__c != "FPL" ){
+return false;
+}
 // prevent updates to amendment lines for discount fields
 if (object.SBQQ__UpgradedSubscription__c) {
 if (fieldName === "SBQQ__Discount__c" || fieldName === "SBQQ__AdditionalDiscount__c" || fieldName === "SBQQ__AdditionalDiscountAmount__c") {
 return false;
 }
-
-// To prevent updating the Quantity field for non-CPC products as part of CR 032528
-if(fieldName === "SBQQ__Quantity__c" && object.SBQQ__Existing__c == true && object.SBQQ__Quote__r.SBQQ__Type__c === 'Amendment'
-&& object.Cost_Model__c !='CPC' && object.SBQQ__ChargeType__c === 'Usage'){
-return false;
-}
+ // To prevent updating the Quantity field for non-CPC products as part of CR 032528
+      if(fieldName === "SBQQ__Quantity__c" && object.SBQQ__Existing__c == true && object.SBQQ__Quote__r.SBQQ__Type__c === 'Amendment'
+        && object.Cost_Model__c !='CPC' && object.SBQQ__ChargeType__c === 'Usage'){
+         return false; 
+      }
 
 }
 // CR 034193
-if (fieldName === "SBQQ__BillingFrequency__c" && object.SBQQ__Quote__r.SBQQ__Type__c === "Renewal" && object.SBQQ__Quote__r.Sub_Type__c === "Maintenance Renewal") {
-return false;
-}
-//CR-031658
-const licenseValues = new Set(["1 MO", "2 HSMO", "H LOAN","1 LOAN"]);
-if(fieldName === "SBQQ__BillingFrequency__c" && licenseValues.has(object.CPQ_License_Type__c ) ){
-return false;
-}
-//034656 && Modified by 036363
-if (fieldName === "SBQQ__BillingFrequency__c" && (object.CPQ_License_Type__c === "EXTEND" || object.CPQ_License_Type__c === "TEST" || object.CPQ_License_Type__c === "BKUP") && object.SBQQ__Quote__r.Sub_Type__c !== "Maintenance Renewal") {
-return false;
-}
+        if (fieldName === "SBQQ__BillingFrequency__c" && object.SBQQ__Quote__r.SBQQ__Type__c ===  "Renewal" && object.SBQQ__Quote__r.Sub_Type__c === "Maintenance Renewal") {
+      return false;
+      }
+      //CR-037733 added HW to below line
+            const licenseValues = new Set(["1 MO", "2 HSMO", "H LOAN","1 LOAN","HW"]);
+        if(fieldName === "SBQQ__BillingFrequency__c" && licenseValues.has(object.CPQ_License_Type__c ) ){
+            return false;
+        }
+         //034656 && Modified by 036363
+        if (fieldName === "SBQQ__BillingFrequency__c" && (object.CPQ_License_Type__c === "EXTEND" || object.CPQ_License_Type__c === "TEST" || object.CPQ_License_Type__c === "BKUP") && object.SBQQ__Quote__r.Sub_Type__c !== "Maintenance Renewal") {
+            return false;
+        }
+        
 //CR-017971 : This logic will block the Additional Discount field on QLE
 //023187 - Add O2O Attribute blank check
 //031375 - Z3 attribute value should also be allowed for additional discount on renewal quotes
 //CR-035230 - Additional Discount field to remain editable on quote lines where T2X = true
-const otoAttributeValue = new Set(["Z0","Z1", "Z3","Z4","T2X - Replacement Product"]);
-if(fieldName === "SBQQ__AdditionalDiscount__c" && object.SBQQ__Quote__r.SBQQ__Type__c === "Renewal"){
+const otoAttributeValue = new Set(["Z0", "Z1", "Z3","Z4","T2X - Replacement Product"]);
+if (fieldName === "SBQQ__AdditionalDiscount__c" && object.SBQQ__Quote__r.SBQQ__Type__c === "Renewal") {
 if ( object.O2O_Attribute_Value__c != undefined && !otoAttributeValue.has(object.O2O_Attribute_Value__c)) {
 return false;
 }
 }
 
-//CR-035511 : This logic will enable to additional discount field for Invoice grouping preference is BY PO NUMBER
-if (
-fieldName === "SBQQ__AdditionalDiscount__c" &&
-object.SBQQ__Quote__r.SBQQ__Type__c === "Amendment" &&
-object.SBQQ__Quote__r.ERP_Type__c === "Sherpa X" &&
-object.SBQQ__Quote__r.Invoice_Grouping_Preference__c === "By PO Number"
+//CR-035511 : This logic will enable to additional discounr field for Invoice grouping preference is BY PO NUMBER
+        if (
+    fieldName === "SBQQ__AdditionalDiscount__c" &&
+    object.SBQQ__Quote__r.SBQQ__Type__c === "Amendment" &&
+    object.SBQQ__Quote__r.ERP_Type__c === "Sherpa X" &&
+    object.SBQQ__Quote__r.Invoice_Grouping_Preference__c === "By PO Number"
 ) {
-// allow editing only for cloned lines
-if (object.SBQQ__Source__c) {
-return true;
+    // allow editing only for cloned lines
+    if (object.SBQQ__Source__c) {
+        return true;
+    }
 }
+
+//032608: Entitlement group is read only at the time of amendment for the Existing Quote Line.
+if (fieldName === 'Entitlement_Group__c' && object.SBQQ__Quote__r.ERP_Type__c === 'Sherpa X' 
+    && object.SBQQ__UpgradedSubscription__c != null && object.SBQQ__Quote__r.SBQQ__Type__c === 'Amendment' ) {
+    return false;
 }
-//CR-030766 T2X/CPQ: Restrict "T2X Replacement" tick box to SaaS LaaS Product Flag
-if (fieldName === "T2X_Replacement__c") {
-if (object.Product_Flag__c === "SaaS - Xflag" || object.Product_Flag__c === "LaaS" || object.Product_Flag__c === "SaaS - Fflag" || object.Product_Flag__c === "SaaS - Dflag" || object.Product_Flag__c === "SaaS - Eflag" || object.Product_Flag__c === "SaaS - Zflag" || object.Product_Flag__c === "SaaS - No Flag") {
-return true;
-}else {
+
+//CR-023490 : This logic will block the Global pricing field on QLE in case of amendment for existing products
+if (fieldName === "Global_Pricing__c" && object.SBQQ__Quote__r.SBQQ__Type__c === "Amendment" && object.SBQQ__UpgradedSubscription__c != null) {
 return false;
-}
 }
 
 //CR-023768 : This logic will block the Start Date field on QLE Renewal
@@ -251,23 +276,20 @@ return true;
 }
 return false;
 }
+
 // CR-035919: Support CPQ Amendments with Custom/Non Linear Billing
-if (object.SBQQ__UpgradedSubscription__c && object.SBQQ__BillingFrequency__c === 'Custom Billing' && object.SBQQ__Quote__r.ERP_Type__c === 'Sherpa X') {
+if (object.SBQQ__UpgradedSubscription__c && object.SBQQ__BillingFrequency__c  === 'Custom Billing' && object.SBQQ__Quote__r.ERP_Type__c  === 'Sherpa X') {
 if (fieldName === "SBQQ__Quantity__c") {
 return true;
 }
 return false;
 }
 
-// CR-028701: T2X_Replacement__c This applies ONLY to new lines. Existing lines on a renewal or amendment quote can not be selected.
-if(fieldName === "T2X_Replacement__c" && object.QL_Concatenated_Indicator__c && !((object.QL_Concatenated_Indicator__c).includes("New") || (object.QL_Concatenated_Indicator__c).includes("T2X")) ){
-return false;
-}
-//CR:023186
-if (fieldName === "Partner_Total__c") return false;
+//CR-023186
+if(fieldName === "Partner_Total__c") return false;
 
 //CR-023994 : This logic will block List Price from being edited if it's not SAASOPS or they do not have permission to edit SAASOPS
-//CR-028373: SAASOPS7001 has a list price assigned so we no longer need the list unit price editable. Therefore removed SAASOPS7001 from the excluded list
+//CR-028373: SAASOPS7001 has a list price assigned so we no longer need the list unit price editable. Therefore removed SAASOPS7001 from the excluded list.
 const excluded_ProductCodeSet = new Set([
 "SAASOPS7000",
 "PS-CNSLTG"
@@ -275,14 +297,18 @@ const excluded_ProductCodeSet = new Set([
 if(fieldName === 'SBQQ__ListPrice__c' && (!excluded_ProductCodeSet.has(object.SBQQ__ProductCode__c) || !object.SBQQ__Quote__r.SAASOPS_Price_Edit_Access__c)){
 return false;
 }
-// CR-027850 - to make billing frequency non-editable for MIN/MAX product:
-if (fieldName === 'SBQQ__BillingFrequency__c' && (object.Max_Subscription_Term__c !== null && object.Max_Subscription_Term__c > 0)) {
+if(fieldName === 'SBQQ__BillingFrequency__c' &&
+(object.Max_Subscription_Term__c !== null && object.Max_Subscription_Term__c > 0 )
+){
 return false;
 }
+//36844
+if(object.SBQQ__Bundle__c === false && fieldName === "Total_Bundle_Discount__c" ){
+return false;
+        }
+
 // CR-029755 --Dieep Ravi -- Read only on QLE--Start Here
-
 const conditionalReadOnlyFields = new Set([
-
 'CPQ_License_Type__c',
 'SBQQ__PackageProductDescription__c',
 'SBQQ__StartDate__c',
@@ -292,18 +318,26 @@ const conditionalReadOnlyFields = new Set([
 'SBQQ__BillingFrequency__c'
 ]);
 
-// Handle always-read-only fields conditionally
-if (conditionalReadOnlyFields.has(fieldName)) {
-if (object.SBQQ__RequiredBy__c != null) {
-return false; // Make read-only if condition matches
+const hardwareDivisions = new Set(['03', '07', '08']);// CR-037730
 
-}
-}
-// CR-029755 --Dieep Ravi -- Read only on QLE--End Here
-//032608: As a user, I should not be allowed to change the Entitlement group at the time of amendment from the Existing Quote Line.
-if (fieldName === 'Entitlement_Group__c' && object.SBQQ__Quote__r.ERP_Type__c === 'Sherpa X' && object.SBQQ__UpgradedSubscription__c != null) {
+
+// Added via CR-030543
+if(object.SBQQ__Quote__r.SBQQ__Type__c == 'Amendment' && object.SBQQ__UpgradedSubscription__c != null && fieldName === 'Support_Level__c'){
 return false;
 }
+
+// Handle always-read-only fields conditionally
+if (conditionalReadOnlyFields.has(fieldName)) {
+  if (fieldName === 'CPQ_License_Type__c' && object.SBQQ__RequiredBy__r && object.SBQQ__RequiredBy__r.Bundle_Type__c === 'Altair') {
+    if (hardwareDivisions.has(String(object.Division__c))) {
+      return true;
+    }
+  }
+  if (object.SBQQ__RequiredBy__c != null) {
+return false;
+}
+}
+// CR-029755 & 37730
 
 // CR-019680 Read only on QLE
 if(object.SBQQ__Quote__r.Readonly_Fields_QLE__c != undefined &&
@@ -313,26 +347,60 @@ if (readFields.has(fieldName)) {
 return false;
 }
 }
+// CR- 037729 (Altair HW + GSCS HW) — fields read-only
+if (object.SBQQ__Quote__r.SBQQ__Type__c === "Amendment" && object.SBQQ__UpgradedSubscription__c != null && object.Bundle_Type__c === "Altair" && object.Is_Bundle__c === true && object.SBQQ__Quote__r.Readonly_Fields_QLE_On_Premise_Product__c != undefined && object.SBQQ__Quote__r.Readonly_Fields_QLE_On_Premise_Product__c != null) {
+var hwReadOnlyFields = new Set((object.SBQQ__Quote__r.Readonly_Fields_QLE_On_Premise_Product__c).split(','));
+if (hwReadOnlyFields.has(fieldName)) {
+return false;
+}}
+if (fieldName === 'Access_Range__c' && object.Bundle_Type__c === "Altair" && object.Is_Bundle__c === true) {
+return false;
+} // END CR- 037729
 // Dileep Ravi - CR 032188--Read only fields for On Premise products on Amendment quotes
 if (object.Product_Flag__c === "On Premise" &&
 object.SBQQ__Quote__r.SBQQ__Type__c === "Amendment" &&
 object.SBQQ__UpgradedSubscription__c != null &&
 object.SBQQ__Quote__r.Readonly_Fields_QLE_On_Premise_Product__c != undefined &&
 object.SBQQ__Quote__r.Readonly_Fields_QLE_On_Premise_Product__c != null) {
+
 var onPremiseReadFields = new Set((object.SBQQ__Quote__r.Readonly_Fields_QLE_On_Premise_Product__c).split(','));
 if (onPremiseReadFields.has(fieldName)) {
-return false;
+    //CR-039249
+    if (fieldName === "SBQQ__Quantity__c" && object.SBQQ__Quote__r.ERP_Type__c === 'Sherpa X' && object.CPQ_License_Type__c === "FSUB") {
+        return true;
+    }
+    if (fieldName === "SBQQ__StartDate__c" && object.SBQQ__Quote__r.ERP_Type__c === 'Sherpa X' && object.CPQ_License_Type__c === "FSUB") {
+    
+       const contractId = object.SBQQ__UpgradedSubscription__c;
+ const fetchById = "Id";
+if (contractId) {
+    const subscriptionRecord = await conn.query("SELECT Id, TFC__c, SBQQ__StartDate__c, SBQQ__EndDate__c, SBQQ__Contract__r.SBQQ__ExpirationDate__c, SBQQ__Contract__r.Earliest_Renewable_Endate__c, SBQQ__Contract__r.EndDate, SBQQ__Contract__r.StartDate FROM SBQQ__Subscription__c WHERE " + fetchById + "= '" + contractId + "'");
+
+        const sub = subscriptionRecord.records[0];
+        console.log(object.SBQQ__StartDate__c);
+        if (sub.TFC__c === 'N'){
+        console.log(sub.TFC__c );
+        return true;
+         }
+     console.log(sub );
+    }
+    
+    
 }
+    return false;
+    }
+    return false;
 }
+
 // Dileep Ravi - CR032188 --End Here
 //maintenance renewal read only fields - Ayushi badkul, 032589, CR-34899: Added Maint_Tier_Level__c as readOnly
 const maintenanceRenewalReadOnlyFields = new Set([
-'Product_Flag__c',
-'CPQ_License_Type__c',
-'Install__c',
-'Current_List_Price__c',
-'Current_partner_Price__c',
-'Maint_Tier_Level__c'
+        'Product_Flag__c',
+        'CPQ_License_Type__c',
+        'Install__c',
+        'Current_List_Price__c',
+        'Current_partner_Price__c',
+        'Maint_Tier_Level__c'
 ]);
 
 //CR-031035: Making Product_Flag__c field non-editable when Quote Sub Type = Maintenance Renewal
@@ -340,21 +408,44 @@ const maintenanceRenewalReadOnlyFields = new Set([
 //CR-030968: Making CPQ_License_Type__c field non-editable when Quote Sub Type = Maintenance Renewal
 if (maintenanceRenewalReadOnlyFields.has(fieldName)) {
 if (object.SBQQ__Quote__r.Sub_Type__c !== null && object.SBQQ__Quote__r.Sub_Type__c === "Maintenance Renewal") {
-return false; // Make read-only if condition matches
+    return false; // Make read-only if condition matches
 }
 }
-// CR-15230: prevent editing all header fields if QLE View (EditLinesFieldSetName__c) is set to LMS_Server_Fields
-} else if (objectName === 'Quote__c') {
-//CR 031939 --Start Here
-if(object.Sub_Type__c === "Maintenance Renewal" && fieldName === "SBQQ__StartDate__c"){
-return false;
-}
-//032589
-if(object.Sub_Type__c === "Maintenance Renewal" && fieldName === "Install__c"){
+/*
+//CR-030968: Making CPQ_License_Type__c field non-editable when Quote Sub Type = Maintenance Renewal
+if (fieldName === 'CPQ_License_Type__c' && (object.SBQQ__Quote__r.Sub_Type__c !== null && object.SBQQ__Quote__r.Sub_Type__c === "Maintenance Renewal")) {
 return false;
 }
 
+//CR-031035: Making Product_Flag__c field non-editable when Quote Sub Type = Maintenance Renewal
+if (fieldName === 'Product_Flag__c' && (object.SBQQ__Quote__r.Sub_Type__c !== null && object.SBQQ__Quote__r.Sub_Type__c === "Maintenance Renewal")) {
+return false;
+}*/
+
+// CR-15230: prevent editing all header fields if QLE View (EditLinesFieldSetName__c) is set to LMS_Server_Fields
+} else if (objectName === 'Quote__c') {
+        
+//CR 031939 --Start Here
+if(object.Sub_Type__c === "Maintenance Renewal" && fieldName === "SBQQ__StartDate__c"){
+    return false;
+}
+//CR 031939 --End Here
+//032589
+         if(object.Sub_Type__c === "Maintenance Renewal" && fieldName === "Install__c"){
+            return false;
+        }
+        
+
 if (object.EditLinesFieldSetName__c === 'LMS_Server_Fields') {
+return false;
+}
+//CR 023490
+if(fieldName === "Global_Pricing__c" && object.SBQQ__Type__c == 'Amendment'){
+return false;
+}
+
+//CR-027191
+if (fieldName === "Provisioning_Lead_Time_Date_Sync__c" && (object.SBQQ__Type__c === "Renewal" || object.SBQQ__Type__c === "Amendment")) {
 return false;
 }
 } else ;
@@ -389,11 +480,10 @@ resolve();
 */
 async function onBeforeCalculate(quoteModel, quoteLineModels, conn) {
 
-//CR-030777 - stopping users from modifying in QLE when Quote status is not Draft
-if(quoteModel.record["SBQQ__Status__c"] == "Denied" || quoteModel.record["SBQQ__Status__c"] == "Expired") {
+//CR-035419 - stopping users from modifying in QLE when Quote status is Denied or Expired
+if (quoteModel.record["SBQQ__Status__c"] == "Denied" || quoteModel.record["SBQQ__Status__c"] == "Expired") {
 throw Error('Modifications should be done on Draft status quotes only.');
 }
-
 // CR18181 - Promo Code Level check is not needed anymore
 //if(quoteModel.record["Promo_Code__c"] != null && quoteModel.record["Promo_Code_Level__c"] == null ){
 // throw Error('Please provide the proper Promo Code Level for the associated Promo Code');
@@ -403,11 +493,11 @@ const PROD_FLAG_ADDON = "HSaaS Addon";
 //CR-026381 - Validation message when Target customer amount and SAASOPS product is quoted
 const targetAmount = quoteModel.record["SBQQ__TargetCustomerAmount__c"];
 let hasSaasopsProduct = false;
-if(targetAmount != undefined && targetAmount != null){
-for (let line of quoteLineModels){
+if (targetAmount != undefined && targetAmount != null) {
+for (let line of quoteLineModels) {
 const productCode = line.record["SBQQ__ProductCode__c"];
 const effectiveQuantity = line.record["SBQQ__EffectiveQuantity__c"];
-if((productCode == "SAASOPS7000" || productCode == "SAASOPS7001") && effectiveQuantity !=0){
+if ((productCode == "SAASOPS7000" || productCode == "SAASOPS7001") && effectiveQuantity != 0) {
 hasSaasopsProduct = true;
 break;
 }
@@ -419,9 +509,10 @@ throw Error('Target Customer Amount is not supported with SAASOPS products, remo
 }
 
 // CR-15228: set of custom fields to exclude from copying to cloned lines
-const IGNORE_CLONING_FIELDS = ["Error_Alert__c", "Missing_Base__c", "License_Contact__c","Missing_PreReq__c", "Ramp_Key__c", "Ramp_Id__c", "Ramp_Average_Price__c",
+const IGNORE_CLONING_FIELDS = ["Error_Alert__c", "Missing_Base__c", "License_Contact__c", "Missing_PreReq__c", "Ramp_Key__c", "Ramp_Id__c", "Ramp_Average_Price__c",
 "Current_ACV_12_Mth__c",
-"Original_Group_Id__c", "Previous_Quantity__c", "Previous_Access_Range__c", "Previous_License_Type__c", "Install__c"];
+"Original_Group_Id__c", "Previous_Quantity__c", 
+"Previous_Access_Range__c", "Previous_License_Type__c", "Install__c"];
 let start = Date.now();
 
 if (quoteModel.groups.length > 0) {
@@ -434,7 +525,8 @@ let quoteLines = [];
 // map to store quote line record data for copying values from parent line to cloned lines
 let quoteLineMap = {};
 let groupMap = {};
-const byKey = new Map(); // Added As part of CR:031935
+
+ const byKey = new Map();  // Added  As part of CR:031935
 
 
 // CR-15984: build map of quote line groups to copy install if set on group
@@ -455,38 +547,46 @@ if( quoteModel.record["Start_Date_Type__c"] == "Flexible Start Date" && quoteMod
 if( quoteModel.record["Start_Date_Type__c"] == "Flexible Start Date" && quoteModel.record["SBQQ__EndDate__c"] != null ){ throw Error('End Date needs to be blank for Flexible Start Date type Quotes'); }
 
 //CR-032650
-if(quoteModel.record["SBQQ__EndDate__c"] != null || quoteModel.record["SBQQ__EndDate__c"] != undefined){
-var originalDate = quoteModel.record["SBQQ__EndDate__c"];
-const parts = originalDate.split('-'); // yyyy-mm-dd
-var existingEndDate = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
-var curntDate = existingEndDate.getUTCDate().toString().padStart(2, '0');
+       if(quoteModel.record["SBQQ__EndDate__c"] != null || quoteModel.record["SBQQ__EndDate__c"] != undefined){
+            var originalDate = quoteModel.record["SBQQ__EndDate__c"];
+            console.log("originalDate:", originalDate);
+            const parts = originalDate.split('-');  // yyyy-mm-dd
+            var existingEndDate = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+            console.log("existingEndDate:", existingEndDate);
+            var curntDate = existingEndDate.getUTCDate().toString().padStart(2, '0');
+            console.log("curntDate:", curntDate);
+            
+            // Last day of current month + 1
+            const lastDay = new Date(Date.UTC(existingEndDate.getUTCFullYear(), existingEndDate.getUTCMonth() + 1, 0));
+            lastDay.setUTCDate(lastDay.getUTCDate());
+            const lastDayOfMonth = lastDay.getUTCDate().toString().padStart(2, '0');
+            console.log("lastDayOfMonth:", lastDayOfMonth);
 
-// Last day of current month + 1
-const lastDay = new Date(Date.UTC(existingEndDate.getUTCFullYear(), existingEndDate.getUTCMonth() + 1, 0));
-lastDay.setUTCDate(lastDay.getUTCDate());
-const lastDayOfMonth = lastDay.getUTCDate().toString().padStart(2, '0');
-
-if (quoteModel.record["Sub_Type__c"] == 'Maintenance Renewal' && curntDate >= 1 && curntDate < lastDayOfMonth) {
-quoteModel.record["SBQQ__EndDate__c"] = existingEndDate.getUTCFullYear() + '-' + (existingEndDate.getUTCMonth() + 1).toString().padStart(2, '0') + '-' + lastDayOfMonth;
-}
-}
+            if (quoteModel.record["Sub_Type__c"] == 'Maintenance Renewal' && curntDate >= 1 && curntDate < lastDayOfMonth && quoteModel.record["ERP_Type__c"] != "Sherpa X") {
+            console.log("entered--inside");
+                quoteModel.record["SBQQ__EndDate__c"] = existingEndDate.getUTCFullYear() + '-' + (existingEndDate.getUTCMonth() + 1).toString().padStart(2, '0') + '-' + lastDayOfMonth;
+                console.log("Quote end date :", quoteModel.record["SBQQ__EndDate__c"]);
+            }
+        }
 
 //CR:023783
 // Calculate today's date
-var currentDate= new Date();
+/*var currentDate= new Date();
 currentDate.setDate(currentDate.getDate());
 var todayDateFormat = currentDate.getFullYear() + '-' + (currentDate.getMonth() + 1).toString().padStart(2, '0') + '-' +
 currentDate.getDate().toString().padStart(2, '0');
 if(quoteModel.record["SBQQ__StartDate__c"] < todayDateFormat && quoteModel.record["SBQQ__Type__c"] == "Quote") {
 throw Error("Start date can not be in the past.");
-}
+}*/
 
 //021801,021802
 var contractId = quoteModel.record["SBQQ__MasterContract__c"];
-var contractEndDate;
 var fetchId;
 var subscriptionRecord;
-var contractStartDate;// CR-027697 Navy
+var contractEarliestRenEndDate;
+
+//028616 - Romesh - Variable to hold the Contract Start Date
+var contractStartDate;
 
 for (let line of quoteLineModels) {
 if(line.record["SBQQ__RenewedSubscription__c"] != undefined){
@@ -502,42 +602,67 @@ fetchById = 'SBQQ__Contract__c';
 fetchId = contractId;
 }
 else fetchById = 'id';
-//028616 - Added Startdate in Query
-subscriptionRecord = await conn.query("SELECT Id, SBQQ__StartDate__c, SBQQ__EndDate__c, SBQQ__Contract__r.SBQQ__ExpirationDate__c, SBQQ__Contract__r.Earliest_Renewable_Endate__c, SBQQ__Contract__r.EndDate, SBQQ__Contract__r.StartDate FROM SBQQ__Subscription__c WHERE " + fetchById + "= '" + fetchId + "'");
-
-var mapOfSubscription = new Map();
-
-subscriptionRecord.records.forEach((sub) => {
-const key = sub.Id; // or sub.Id, or sub.SBQQ__Product__c, depending on your use case
-if (key) {
-mapOfSubscription.set(key, sub);
+//031970 start
+let contractEndDate;
+if (contractId ) {
+const contractQuery = await conn.query("SELECT Id, EndDate FROM contract WHERE Id = '" + contractId + "'");
+if (contractQuery.records.length > 0) {
+contractEndDate = contractQuery.records[0].EndDate;
+}}
+console.log("Contract End Date:", contractEndDate);
+if (contractEndDate) {
+const quoteEndDate = quoteModel.record["SBQQ__EndDate__c"];
+console.log("Quote End Date:", quoteEndDate);
+if ( quoteEndDate && new Date(quoteEndDate) > new Date(contractEndDate)) {
+throw new Error("End Date cannot be later than the Contract End Date.");
 }
-});
-
+}
+//031970 End
+//028616 - Added Startdate in Query
+        subscriptionRecord = await conn.query("SELECT Id, TFC__c, SBQQ__StartDate__c, SBQQ__EndDate__c, SBQQ__Contract__r.SBQQ__ExpirationDate__c, SBQQ__Contract__r.Earliest_Renewable_Endate__c, SBQQ__Contract__r.EndDate, SBQQ__Contract__r.StartDate FROM SBQQ__Subscription__c WHERE " + fetchById + "= '" + fetchId + "'"); //CR-040181 - Added TFC__c
+        
+        var mapOfSubscription = new Map();
+        
+        subscriptionRecord.records.forEach((sub) => {
+            const key = sub.Id; // or sub.Id, or sub.SBQQ__Product__c, depending on your use case
+            if (key) {
+                mapOfSubscription.set(key, sub);
+            }
+        });
+        //CR-040181 --Start Here
+        var mapOfSubscriptionTFC = new Map();
+        subscriptionRecord.records.forEach((sub) => { if (sub.Id) mapOfSubscriptionTFC.set(sub.Id, sub.TFC__c); });
+        quoteModel.__mapOfSubscriptionTFC = mapOfSubscriptionTFC;
+        //CR-040181 --End Here
+        
 if (subscriptionRecord != undefined) {
 contractEndDate = subscriptionRecord.records[0].SBQQ__Contract__r.EndDate;
-subscriptionRecord.records[0].SBQQ__Contract__r.Earliest_Renewable_Endate__c;
-contractStartDate = subscriptionRecord.records[0].SBQQ__Contract__r.StartDate; //CR -CR-027697 Navy
+contractEarliestRenEndDate = subscriptionRecord.records[0].SBQQ__Contract__r.Earliest_Renewable_Endate__c;
+
+//028616
+contractStartDate = subscriptionRecord.records[0].SBQQ__Contract__r.StartDate;
 }
 }
 
-//021801,021802,023783
+console.log('contractStartDate:--'+contractStartDate);
+
+//021801,021802
+// Calculate today's date
 var todayDate = new Date();
 todayDate.setDate(todayDate.getDate() - 1);
 var currentDate = todayDate.getFullYear() + '-' + (todayDate.getMonth() + 1).toString().padStart(2, '0') + '-' +
 todayDate.getDate().toString().padStart(2, '0');
-
+let allowedDate = new Date(todayDate); //CR-037588
+allowedDate.setDate(allowedDate.getDate() - 45);
 //020904
-if (quoteModel.record["SBQQ__Type__c"] == "Amendment" && (quoteModel.record["Sub_Type__c"] == undefined || quoteModel.record["Sub_Type__c"] == "Amendment")) ;
+if (quoteModel.record["SBQQ__Type__c"] == "Amendment" && quoteModel.record["Sub_Type__c"] == undefined) contractEarliestRenEndDate = currentDate;
 //023480,020904
-if(quoteModel.record["SBQQ__Type__c"] == "Renewal" && (quoteModel.record["Sub_Type__c"] == undefined || quoteModel.record["Sub_Type__c"] == "Subscription Renewal") && quoteModel.record["Install_Earliest_End_Date__c"] != undefined) quoteModel.record["Install_Earliest_End_Date__c"];
-
-//021801,021802,023783,020904
+//021801,021802,020904,025950
 //028616Romesh - Restricting only P03 Quote allowing Backdate amendment for Sherpa X & adding Allow_For_Backdating__c check or CR:029634
-//Commented by Romesh as all condition are there in the Price Action
-/*if ((quoteModel.record["SBQQ__Type__c"] == "Renewal" || (quoteModel.record["SBQQ__Type__c"] == "Amendment" && quoteModel.record["Allow_For_Backdating__c"] === false)) && (quoteModel.record["Sub_Type__c"] == undefined || quoteModel.record["Sub_Type__c"] == "Subscription Renewal" || quoteModel.record["Sub_Type__c"] == "Amendment" ) && quoteModel.record["SBQQ__StartDate__c"] <= contractEarliestRenEndDate ) {
-throw Error('The Quote Start Date cannot be in the past.');
-} */
+ if ((quoteModel.record["SBQQ__Type__c"] == "Renewal" && new Date(quoteModel.record["SBQQ__StartDate__c"])<= allowedDate && quoteModel.record["Sub_Type__c"] != "Maintenance Renewal") || (quoteModel.record["SBQQ__Type__c"] == "Amendment" && quoteModel.record["Allow_For_Backdating__c"] === false && quoteModel.record["Sub_Type__c"] == undefined && quoteModel.record["SBQQ__StartDate__c"] <= contractEarliestRenEndDate ))  {
+        throw Error('The Quote Start Date cannot be in the past.');
+        }
+
 //CR : 029634
 if(quoteModel.record["SBQQ__Type__c"] == "Amendment" && quoteModel.record["Allow_For_Backdating__c"] === true ){
 var quoteCreatedDate = new Date(quoteModel.record["CreatedDate"]);
@@ -546,69 +671,180 @@ var contractStartDateConverted = new Date(contractStartDate);
 if(new Date(quoteModel.record["SBQQ__StartDate__c"]) < contractStartDateConverted){
 throw Error('Start Date can not be less than Contract Start Date');
 }
+//CR-032189 Removing 120 backdate limit
 }
+
 //CR-031092
-if((quoteModel.record["SBQQ__Type__c"] == "Quote" || quoteModel.record["SBQQ__Type__c"] == "Amendment" || quoteModel.record["SBQQ__Type__c"] == "Renewal") && quoteModel.record["SBQQ__StartDate__c"] > quoteModel.record["SBQQ__EndDate__c"]) throw Error('Quote End Date cannot be earlier than the Start Date.');
+if ((quoteModel.record["SBQQ__Type__c"] == "Quote" || quoteModel.record["SBQQ__Type__c"] == "Amendment" || quoteModel.record["SBQQ__Type__c"] == "Renewal") && quoteModel.record["SBQQ__StartDate__c"] > quoteModel.record["SBQQ__EndDate__c"]) throw Error('Quote End Date cannot be earlier than the Start Date.');
 
 //026396
 if(quoteModel.record["ERP_Type__c"] == "Sherpa X"){
 quoteModel.record["Start_Date_Type__c"] = "Fixed Start Date";
 }
+//CR-027191
+var maxDate;
+var greaterDate;
+var todayPlus10Days;
+var backStartDate = false;
+var provisioningRecordExist = false;
+
+var todayPlus10Days = new Date();
+todayPlus10Days.setDate(todayPlus10Days.getDate() + 10);
+backStartDate = todayPlus10Days.getFullYear() + '-' + (todayPlus10Days.getMonth() + 1).toString().padStart(2, '0') + '-' +
+todayPlus10Days.getDate().toString().padStart(2, '0');
+
+//CR-027191
+for (let line of quoteLineModels) {
+var todayDate = new Date();
+
+todayDate.setDate(todayDate.getDate() + Number(line.record["Provisioning_Lead_Time__c"]) + 10);
+var currentDate = todayDate.getFullYear() + '-' + (todayDate.getMonth() + 1).toString().padStart(2, '0') + '-' +
+todayDate.getDate().toString().padStart(2, '0');
+
+if(Number(line.record["Provisioning_Lead_Time__c"]) != 0) provisioningRecordExist = true;
+if(greaterDate == undefined)
+greaterDate = currentDate;
+if(currentDate > greaterDate)
+greaterDate = currentDate;
+
+  // CR : 030605 below for loop is for this CR also added SBQQ__StartDate__c in above subscription query
+            if(quoteModel.record["SBQQ__Type__c"] == "Amendment" && quoteModel.record["Allow_For_Backdating__c"] === true && 
+            line.record['SBQQ__UpgradedSubscription__c']
+            ){
+                var quoteLineCreatedDate = new Date(line.record["CreatedDate"]);
+quoteLineCreatedDate.setDate(quoteLineCreatedDate.getDate() -120);
+                let upgradedSub = mapOfSubscription.get(line.record['SBQQ__UpgradedSubscription__c']);
+                console.log('***foundUpgSub---',upgradedSub);
+                alert('test1' + '---' + quoteLineCreatedDate + '----' +new Date(line.record["SBQQ__StartDate__c"]));
+                if(upgradedSub.SBQQ__StartDate__c != undefined && new Date(line.record["SBQQ__StartDate__c"]) < new Date(upgradedSub.SBQQ__StartDate__c)){
+throw Error('Quote Line Start Date can not be less than Upgraded Subscription Start Date');
+}
+else if(line.record["SBQQ__StartDate__c"] != undefined && new Date(line.record["SBQQ__StartDate__c"]) < quoteLineCreatedDate){
+throw Error('Quote Line Start Date can only be prior 120 Days to Quote Line Amendment Date');
+}
+}
+}
+console.log('log6');
+
+//CR-027191
+if(quoteModel.record["SBQQ__Type__c"] == "Quote" && provisioningRecordExist){
+if(!quoteModel.record["Skip_Provisioning_Lead_Time_Date_Sync__c"]){
+quoteModel.record["Provisioning_Lead_Time_Date_Sync__c"] = true;
+quoteModel.record["Skip_Provisioning_Lead_Time_Date_Sync__c"] = true;
+quoteModel.record["SBQQ__StartDate__c"] = greaterDate;
+}else if(quoteModel.record["Provisioning_Lead_Time_Date_Sync__c"]){
+if(quoteModel.record["Manual_Start_Date_Override__c"]){
+quoteModel.record["SBQQ__StartDate__c"] = greaterDate;
+quoteModel.record["Manual_Start_Date_Override__c"] = false;
+}
+}else if(!quoteModel.record["Provisioning_Lead_Time_Date_Sync__c"] && !quoteModel.record["Manual_Start_Date_Override__c"]){
+quoteModel.record["SBQQ__StartDate__c"] = backStartDate;
+quoteModel.record["Manual_Start_Date_Override__c"] = true;
+}
+quoteModel.record["Longest_Provision_Lead_Time_Start_Date__c"] = true;
+}else {
+quoteModel.record["Provisioning_Lead_Time_Date_Sync__c"] = false;
+quoteModel.record["Longest_Provision_Lead_Time_Start_Date__c"] = false;
+quoteModel.record["Skip_Provisioning_Lead_Time_Date_Sync__c"] = false;
+}
+
 
 // iterate over quote lines and build request to qcp helper apex class
 for (let line of quoteLineModels) {
 //035512
 if (
-quoteModel.record["SBQQ__Type__c"] === "Amendment" &&
-quoteModel.record["ERP_Type__c"] === "Sherpa X" &&
-quoteModel.record["Invoice_Grouping_Preference__c"] === "BY PO NUMBER" &&
-line.record["SBQQ__UpgradedSubscription__c"] &&
-line.record["SBQQ__PriorQuantity__c"] != null
+    quoteModel.record["SBQQ__Type__c"] === "Amendment" &&
+    quoteModel.record["ERP_Type__c"] === "Sherpa X" &&
+    quoteModel.record["Invoice_Grouping_Preference__c"] === "BY PO NUMBER" &&
+    line.record["SBQQ__UpgradedSubscription__c"] &&
+    line.record["SBQQ__PriorQuantity__c"] != null
 ) {
 
-let currentQty = line.record["SBQQ__Quantity__c"] || 0;
-let priorQty = line.record["SBQQ__PriorQuantity__c"] || 0;
+    let currentQty = line.record["SBQQ__Quantity__c"] || 0;
+    let priorQty = line.record["SBQQ__PriorQuantity__c"] || 0;
 
-if (currentQty > priorQty) {
-throw Error(
-"Quantity increase is not allowed when Invoice Grouping Preference is set to 'By PO Number'. " +
-"Please clone the existing line to increase the quantity."
-);
+    if (currentQty > priorQty) {
+        throw Error(
+            "Quantity increase is not allowed when Invoice Grouping Preference is set to 'By PO Number'. " +
+            "Please clone the existing line to increase the quantity."
+        );
+    }
+}
+
+if(quoteModel.record["Allow_For_Backdating__c"] === false)// CR:029634
+{
+//CR-027191
+var todayDate;
+todayDate = new Date();
+if (quoteModel.record["SBQQ__Type__c"] == 'Quote') {
+todayDate.setDate(todayDate.getDate() + Number(line.record["Provisioning_Lead_Time__c"]) + 10);
+} else {
+todayDate.setDate(todayDate.getDate() + Number(line.record["Provisioning_Lead_Time__c"]) + 3);
+}
+var currentDate = todayDate.getFullYear() + '-' + (todayDate.getMonth() + 1).toString().padStart(2, '0') + '-' + todayDate.getDate().toString().padStart(2, '0');
+
+if(maxDate == undefined)
+maxDate = currentDate;
+
+if(quoteModel.record["Provisioning_Lead_Time_Date_Sync__c"]){
+if(currentDate > maxDate)
+maxDate = currentDate;
+if(line.record["User_Overridden_StartDate__c"] && !line.record["User_Manual_Overridden_StartDate__c"])
+line.record["User_Overridden_StartDate__c"] = false;
+}else {
+if(quoteModel.record["SBQQ__Type__c"] == 'Quote' || (quoteModel.record["SBQQ__Type__c"] == 'Renewal' && (line.record["SBQQ__RenewedSubscription__c"] == undefined && line.record["Ren_Subscription_Install_Line_End_Date__c"] == undefined )) || (quoteModel.record["SBQQ__Type__c"] == 'Amendment' && !line.record["SBQQ__Existing__c"])){
+if (!line.record["User_Overridden_StartDate__c"] || line.record["User_Manual_Overridden_StartDate__c"]) {
+if(line.record["Provisioning_Lead_Time__c"] != 0){
+line.record["SBQQ__StartDate__c"] = currentDate;
+}
+line.record["User_Overridden_StartDate__c"] = true;
+line.record["User_Manual_Overridden_StartDate__c"] = false;
+}
+
+//CR-37453: Validate the lead time breach, only if Provisioning_Lead_Time__c available.
+if (quoteModel.record["SBQQ__Type__c"] == 'Quote' || (quoteModel.record["SBQQ__Type__c"] == 'Renewal' && (line.record["SBQQ__RenewedSubscription__c"] == undefined && line.record["Ren_Subscription_Install_Line_End_Date__c"] == undefined )) || (quoteModel.record["SBQQ__Type__c"] == 'Amendment' && !line.record["SBQQ__Existing__c"])) {
+  if (line.record["Provisioning_Lead_Time__c"] != '0') {
+    let nowDate = new Date();
+    nowDate.setDate(nowDate.getDate() + Number(line.record["Provisioning_Lead_Time__c"]) + 1);
+    let minStartDate = nowDate.getFullYear() + '-' + (nowDate.getMonth() + 1).toString().padStart(2, '0') + '-' + nowDate.getDate().toString().padStart(2, '0');
+    
+    // Validate start date. CR-37453: Missing SBQQ__StartDate__c is automatically considered a breach.
+    if (!line.record["SBQQ__StartDate__c"] || line.record["SBQQ__StartDate__c"] < minStartDate) {
+      line.record["Lead_Time_Breach__c"] = true;
+    } else {
+      line.record["Lead_Time_Breach__c"] = false;
+    }
+  } 
+}
+
 }
 }
+}
+
 //CR-026761 moved o2oattribute logic from price rule
 if (quoteModel.record["Renewal_Type__c"] === 'Renewal Transition' && line.record["O2O_Attribute__c"] && line.record["O2O_Attribute_Percent__c"] !== null) {
-line.record["O2O_Attribute__c"] = (line.record["SBQQ__Discount__c"] === null) ? false : ((line.record["SBQQ__Discount__c"] !==
-line.record["O2O_Attribute_Percent__c"]) || quoteModel.record["Academic_Discount__c"] !== null || quoteModel.record["Software_Discount__c"] !== null || quoteModel.record["Training_Discount__c"] !== null || quoteModel.record["SBQQ__TargetCustomerAmount__c"] !== null || (line.group !== undefined && line.group.record["SBQQ__AdditionalDiscountRate__c"] !== null)) ? false : true;
-
+line.record["O2O_Attribute__c"] = (line.record["SBQQ__Discount__c"] === null) ? false : ((line.record["SBQQ__Discount__c"] !== line.record["O2O_Attribute_Percent__c"]) || quoteModel.record["Academic_Discount__c"] !== null || quoteModel.record["Software_Discount__c"] !== null || quoteModel.record["Training_Discount__c"] !== null || quoteModel.record["SBQQ__TargetCustomerAmount__c"] !== null || (line.group !== undefined && line.group.record["SBQQ__AdditionalDiscountRate__c"] !== null)) ? false : true;
 }
 
-// CR : 030605 below for loop is for this CR also added SBQQ__StartDate__c in above subscription query
-if(quoteModel.record["SBQQ__Type__c"] == "Amendment" && quoteModel.record["Allow_For_Backdating__c"] === true &&
-line.record['SBQQ__UpgradedSubscription__c']
-){
-var quoteLineCreatedDate = new Date(line.record["CreatedDate"]);
-quoteLineCreatedDate.setDate(quoteLineCreatedDate.getDate() -120);
-
-let upgradedSub = mapOfSubscription.get(line.record['SBQQ__UpgradedSubscription__c']);
-
-if(upgradedSub.SBQQ__StartDate__c != undefined && new Date(line.record["SBQQ__StartDate__c"]) < new Date(upgradedSub.SBQQ__StartDate__c)){
-throw Error('Quote Line Start Date can not be less than of Original Quote Line Start Date.');
-}
-//CR-032189 Removing 120 backdate Limit
-}
 // add amendment lines to quote to copy values for any potentially cloned lines
 if (line.record["SBQQ__UpgradedSubscription__c"] && line.record["Id"]) {
 quoteLineMap[line.Id] = line.record;
 }
 
-//CR:028165
-line.record["Start_Date_Type__c"] = "Fixed Start Date";
 
-//CR:027850 - to default billing frequency for MIN/MAX products:
-if (line.record["Max_Subscription_Term__c"] !== null && line.record["Max_Subscription_Term__c"] > 0) {
+//CR:027850
+if (line.record["Max_Subscription_Term__c"] !== null && line.record["Max_Subscription_Term__c"] > 0 )
+{
 line.record["SBQQ__BillingFrequency__c"] = "57";
 }
+// CR-032469
+        if (line.record["SBQQ__ProductCode__c"] === 'STAR1003A') {
+            line.record["SBQQ__SubscriptionTerm__c"] = 12;
+            console.log('podSubscriptionTerm :' + line.record["SBQQ__SubscriptionTerm__c"]);
+        } 
+
+//CR:028165
+line.record["Start_Date_Type__c"] = "Fixed Start Date";
 
 let data = {};
 data.pcsChanges = false;
@@ -616,6 +852,11 @@ data.key = line.key;
 data.prodCategory = line.record["PP1_Category__c"];
 data.productCode = line.record["SBQQ__ProductCode__c"];
 data.prereqString = line.record["Product_Prereq__c"];
+//CR 038264
+data.erpType = line.record["ERP_TYPE__c"];
+data.salesInitiative = line.record["Sales_Initiative__c"];
+data.Upgradedsub = line.record["SBQQ__UpgradedSubscription__c"];
+data.NetPrice = line.record["SBQQ__NetPrice__c"];
 // Dileep Ravi CR 030298 --Start Here
 data.id = line.record["Id"];
 //Dileep Ravi CR 030298 --End Here
@@ -627,11 +868,13 @@ line.record["Product_Flag__c"] === PROD_FLAG_ADDON
 data.division = line.record["Division__c"];
 data.licenseType = line.record["CPQ_License_Type__c"];
 data.quantity = line.record["SBQQ__Quantity__c"];
+data.effectiveQuantity = line.record["SBQQ__EffectiveQuantity__c"]; //CR-039249
 data.accessRange = line.record["Access_Range__c"];
 data.highRoyalty =
 line.record["Royalty_Indicator__c"] === "HR" ? true : false;
 data.renewal = line.record["SBQQ__RenewedSubscription__c"] ? true : false;
 data.renewSub = line.record["SBQQ__RenewedSubscription__c"] ;
+data.amendSub = line.record["SBQQ__UpgradedSubscription__c"] ;
 data.equipmentNumbers = line.record["Prior_Equipment__c"];
 data.equipment = line.record["Prior_Equipment__c"] ? true : false;
 data.productFlag = line.record["Product_Flag__c"];
@@ -648,19 +891,24 @@ data.quoteLineNumber = line.record["SBQQ__Number__c"];
 data.promoCode = line.record["Promo_Code__c"];
 data.effectiveStartDate = line.record["SBQQ__EffectiveStartDate__c"];
 data.effectiveEndDate = line.record["SBQQ__EffectiveEndDate__c"];
+//CR- 037731 Start
+data.bundleType = line.record.SBQQ__Product__r.Bundle_Type__c; 
+//CR- 037731 End
 // CR-15984: moved price rule to stamp install from ql group > quote and pass to qcp helper
 // get qlif install is not populated on quote line, pull from ql group, otherwise pull from quote
 // Commented if for CR 024170 !line.record["Install__c"
-//if (!line.record["Install__c"]) {
+if (quoteModel.record["ERP_Type__c"] == "P03") {
 if (line.parentGroupKey in groupMap && groupMap[line.parentGroupKey].record["Install__c"]) {
 line.record["Install__c"] = groupMap[line.parentGroupKey].record["Install__c"];
 } else if (quoteModel.record["Install__c"] ) {
 line.record["Install__c"] = quoteModel.record["Install__c"];
 }
-//}
-//CR-026124
-if (!line.record["Entitlement_Group__c"]) {
-if (quoteModel.record["Entitlement_Group__c"] ) {
+}
+//CR-039010
+if (quoteModel.record["ERP_Type__c"] == "Sherpa X") {
+if (line.parentGroupKey in groupMap && groupMap[line.parentGroupKey].record["Entitlement_Group__c"]) {
+line.record["Entitlement_Group__c"] = groupMap[line.parentGroupKey].record["Entitlement_Group__c"];
+}else if (quoteModel.record["Entitlement_Group__c"] ) {
 line.record["Entitlement_Group__c"] = quoteModel.record["Entitlement_Group__c"];
 }
 }
@@ -710,7 +958,6 @@ line.record["Start_Date_Type__c"] = quoteModel.record["Start_Date_Type__c"];
 if(quoteModel.record["ERP_Type__c"] == "Sherpa X"){
 line.record["Start_Date_Type__c"] = "Fixed Start Date";
 }
-
 // US-017079
 data.restrictedClass = line.record["Restricted_Class__c"];
 // CR-022280
@@ -1276,7 +1523,6 @@ var minEffectiveStartDate = null;
 /* CR-032601 - Added by PH: Backward/Forward Maintenance Date Calculation for Maintenance Renewal quotes */
 let maxLineEndDate = null;
 let maxLineEndDateAll = null;
-
 let platforms = new Set();
 let installs = new Set();
 let tcs = new Set();
@@ -1295,21 +1541,21 @@ let expNextMonthStartStr = null;
 const isMaintRenewal = quoteModel.record["Sub_Type__c"] === 'Maintenance Renewal';
 
 if (isMaintRenewal) {
-const quoteExpirationDateStr = quoteModel.record["Expiration_Date__c"];
-if (quoteExpirationDateStr) {
-const expParts = quoteExpirationDateStr.split('-');
-quoteExpirationDate = new Date(Date.UTC(expParts[0], expParts[1] - 1, expParts[2]));
-
-const expEndOfMonth = new Date(Date.UTC(quoteExpirationDate.getUTCFullYear(), quoteExpirationDate.getUTCMonth() + 1, 0));
-expEndOfMonthStr = expEndOfMonth.getUTCFullYear() + '-' +
-String(expEndOfMonth.getUTCMonth() + 1).padStart(2, '0') + '-' +
-String(expEndOfMonth.getUTCDate()).padStart(2, '0');
-
-expNextMonthStart = new Date(Date.UTC(quoteExpirationDate.getUTCFullYear(), quoteExpirationDate.getUTCMonth() + 1, 1));
-expNextMonthStartStr = expNextMonthStart.getUTCFullYear() + '-' +
-String(expNextMonthStart.getUTCMonth() + 1).padStart(2, '0') + '-' +
-String(expNextMonthStart.getUTCDate()).padStart(2, '0');
-}
+    const quoteExpirationDateStr = quoteModel.record["Expiration_Date__c"];
+    if (quoteExpirationDateStr) {
+        const expParts = quoteExpirationDateStr.split('-');
+        quoteExpirationDate = new Date(Date.UTC(expParts[0], expParts[1] - 1, expParts[2]));
+        
+        const expEndOfMonth = new Date(Date.UTC(quoteExpirationDate.getUTCFullYear(), quoteExpirationDate.getUTCMonth() + 1, 0));
+        expEndOfMonthStr = expEndOfMonth.getUTCFullYear() + '-' + 
+            String(expEndOfMonth.getUTCMonth() + 1).padStart(2, '0') + '-' + 
+            String(expEndOfMonth.getUTCDate()).padStart(2, '0');
+        
+        expNextMonthStart = new Date(Date.UTC(quoteExpirationDate.getUTCFullYear(), quoteExpirationDate.getUTCMonth() + 1, 1));
+        expNextMonthStartStr = expNextMonthStart.getUTCFullYear() + '-' + 
+            String(expNextMonthStart.getUTCMonth() + 1).padStart(2, '0') + '-' + 
+            String(expNextMonthStart.getUTCDate()).padStart(2, '0');
+    }
 }
 
 if (quoteLineModels != null) {
@@ -1318,7 +1564,18 @@ if ((line.record["Product_Flag__c"] === "On Premise" || line.record["Product_Fla
 line.record["Product_Flag__c"] === "HSaaS Addon") && line.record["CPQ_License_Type__c"] === "FSUB") {
 line.record["Entitlement__c"] = null;
 line.record["Entitlement_Logic__c"] = null;
-line.record["Entitlement_on_Document__c"] = null;}//CR-36094
+line.record["Entitlement_on_Document__c"] = null;
+line.record["Additional_LSDA_Clauses__c"] = null;}//CR-36094
+console.log('isQuoteContaionsCPCProductForYDPR:--' + isQuoteContaionsCPCProductForYDPR);
+//029891
+if (line.record["Cost_Model__c"] == "CPC" && isQuoteContaionsCPCProductForYDPR) {
+
+let errorMsg = line.record["Error_Alert__c"];
+
+line.record["Error_Alert__c"] = errorMsg + " Error: This is a Prepayment quote, please replace this with a SAAS equivalent CPC product.";
+
+}
+console.log('fght:--' + line.record["Error_Alert__c"]);
 if(line.record["AdditionalDiscountRate__c"] != '0' &&
 line.record["AdditionalDiscountRate__c"] != null &&
 quoteModel.record["SBQQ__Status__c"] == 'Draft' &&
@@ -1356,7 +1613,6 @@ line.record['Special_License_Type_Indicator__c'].split(';').forEach(attr => {
 if (attr && attr.trim()) legalAttributes.add(attr);
 });
 }
-
 //for CPM make decimal calculation independent of package decimal
 if(line.record["SBQQ__ChargeType__c"] == 'Usage'){
 if(line.record["Cost_Model__c"] == 'CPM'){
@@ -1375,7 +1631,6 @@ line.record["SBQQ__CustomerPrice__c"] = line.record["SBQQ__ListPrice__c"];
 line.record["SBQQ__NetPrice__c"] = line.record["SBQQ__CustomerPrice__c"];
 }
 }
-
 // get dates for quote lines
 var startDate =
 line.effectiveStartDate != null
@@ -1408,7 +1663,6 @@ maxEffectiveTerm = trueTerm;
 if (minEffectiveStartDate == null || minEffectiveStartDate > startDate) {
 minEffectiveStartDate = startDate;
 }
-
 //CR:022457
 //CR:028165
 if((line.record["Start_Date_Type__c"] == 'Fixed Start Date')){
@@ -1929,17 +2183,17 @@ rampId++;
 // all grouped lines are marked non-renewable except for last group
 //CR-037169-Venkat- Skip this logic for Sherpa X Amendment Stage Delivery
 if (
-quote.record["SBQQ__Type__c"] === "Amendment" &&
-quote.record["ERP_Type__c"] === "Sherpa X" &&
-group.record["Group_Type__c"] === "Stage Delivery"
+    quote.record["SBQQ__Type__c"] === "Amendment" &&
+    quote.record["ERP_Type__c"] === "Sherpa X" &&
+    group.record["Group_Type__c"] === "Stage Delivery"
 ) {
-console.log('===== Skipping Existing Amendment Logic =====');
+    console.log('===== Skipping Existing Amendment Logic =====');
 } else {
-if (counter < rampGroups.length) {
-line.record["Non_Renewable__c"] = true;
-} else {
-line.record["Non_Renewable__c"] = false;
-}
+    if (counter < rampGroups.length) {
+        line.record["Non_Renewable__c"] = true;
+    } else {
+        line.record["Non_Renewable__c"] = false;
+    }
 }
 });
 
@@ -2051,7 +2305,6 @@ function calculateAcv(quote, quoteLines) {
 let rampGroups = [];
 let acv = 0.0;
 let rampGroupMap = {};
-
 let rampTotal = 0.0;
 
 // sum group totals
@@ -2116,483 +2369,12 @@ acv += rampData["total"] / rampData["numLines"];
 quote.record["ACV__c"] = acv;
 }
 
-/**
-* Aggregates SASP category totals and calculates values required for SASP validations
-* @param {*} quote: quote model to populate SASP fields
-* @param {*} quoteLines: quote line models containing required data for calcs
-*/
-function calculateSasp(quote, quoteLines) {
-// set up all variables needed for aggregations and calculations
-const Sasp_Categories = {
-SAAS: "SaaS",
-HSAAS: "HSaaS",
-LAAS: "LaaS",
-XT: "XT"};
-
-// constants to determine SASP category from product flag and high/low thresholds
-const saspCategoriesMap = {
-"HSaaS Addon": [Sasp_Categories.HSAAS],
-"HSaaS Base": [Sasp_Categories.HSAAS],
-"LaaS": [Sasp_Categories.LAAS],
-"SaaS - Cflag": [Sasp_Categories.SAAS],
-"SaaS - Eflag": [Sasp_Categories.XT],
-"SaaS - No Flag": [Sasp_Categories.SAAS],
-"SaaS - Xflag": [Sasp_Categories.SAAS],
-"SaaS - Dflag": [Sasp_Categories.SAAS],
-"SaaS - Zflag": [Sasp_Categories.HSAAS], //025636 //New Changes addedd by Ayushi badkul as part of 028415(SAAS to HSAAS)
-"SaaS - Tflag": [Sasp_Categories.HSAAS], //CR-034365
-"Consulting": null,
-"Service Fee": null
-};
-
-// map to store all aggregated totals required for SASP calculations
-let categoryTotals = {};
-//CR-022019 excluded SAASOPS product from SASP calculation,
-//This CR will be deployed under CR-21252
-
-const excluded_ProductCodeSet = new Set([
-
-"SAASOPS7000",
-
-"SAASOPS7001"
-
-]);
-
-// iterate over quote line to populate SASP category aggregates
-quoteLines.forEach((ql) => {
-// get the SASP category based on product's product flag
-let saspCategory;
-const licenseType = ql.record["CPQ_License_Type__c"]; //CR-034653
-//CR-034653, categroizing ql based on License Type
-if (["EXTEND","TEST","BKUP","N/A"].includes(licenseType)) {
-saspCategory = "ExtendedPerpetual";
-} else if (["MAINT","TESTM","BKUPM"].includes(licenseType)) {
-saspCategory = "Maintenance";
-} else if (ql.record["Product_Flag__c"]) {
-if (ql.record["Product_Flag__c"] === 'On Premise' && ["S TEST","S BKUP","FSUB"].includes(licenseType)) {
-saspCategory = "OnPremSub";
-} else {
-saspCategory = saspCategoriesMap[ql.record["Product_Flag__c"]];
-}//CR-034653 changes end
-} else {
-saspCategory = Sasp_Categories.SAAS;
-}
-
-// if sasp category has not yet been added, populate defaults for aggregations & calculations
-if (saspCategory && !excluded_ProductCodeSet.has(ql.record["SBQQ__ProductCode__c"])) {
-if (!(saspCategory in categoryTotals)) {
-categoryTotals[saspCategory] = {
-total: 0, // partner price total
-netTotal: 0, // net total
-discount: 0, // total amount discounted in $
-discountPct: 0, // total discount % for category
-potReallocation: 0, // Carrying the potential reallocation amount CR-21252
-reallocation: 0, // total amount for re-allocation if needed
-allocationPct: 0, // percentage of category total (SaaS|Laas / (SaaS + Laas) or HSaaS|XT / (HSaaS + XT))
-term: ql.record["True_Effective_Term__c"]
-};
-}
-
-// CR-14941: track effective term for each category and check if they are the same or assign '*' to denote different values
-if (categoryTotals[saspCategory]["term"] !== "*" && categoryTotals[saspCategory]["term"] !== ql.record["True_Effective_Term__c"]) {
-categoryTotals[saspCategory]["term"] = "*";
-}
-// aggregate quote line totals per SASP category
-categoryTotals[saspCategory]["total"] += ql.RegularTotal__c;
-categoryTotals[saspCategory]["discount"] +=
-ql.RegularTotal__c - ql.CustomerTotal__c;
-categoryTotals[saspCategory]["netTotal"] += ql.NetTotal__c;
-}
-});
-
-let hsaasXtTotal =
-(categoryTotals[Sasp_Categories.HSAAS]
-? categoryTotals[Sasp_Categories.HSAAS]["total"]
-: 0) +
-(categoryTotals[Sasp_Categories.XT]
-? categoryTotals[Sasp_Categories.XT]["total"]
-: 0);
-// iterate over category total keys and calculation discount % & allocation percentage
-for (const key in categoryTotals) {
-// calculate average discount: total discount amount / list total
-let currCategory = categoryTotals[key];
-currCategory["discountPct"] =
-currCategory["total"] > 0
-? currCategory["discount"] / currCategory["total"]
-: 0;
-
-// calculate the % total for HSaaS + XT for re-allocation calculations
-if (key === Sasp_Categories.HSAAS || key === Sasp_Categories.XT) {
-currCategory["allocationPct"] = currCategory["total"] / hsaasXtTotal;
-}
-}
-
-let saspStatus = "";
-let overage = calculateSaspOverage(categoryTotals, Sasp_Categories);
-
-// calculate allocation amounts if discounts are exceeded for hsaas or laas categories OR discount for HSaaS and XT are not equal
-if (
-overage > 0 ||
-(categoryTotals[Sasp_Categories.HSAAS] &&
-categoryTotals[Sasp_Categories.XT] &&
-Math.round(categoryTotals[Sasp_Categories.HSAAS].discountPct * 100) !==
-Math.round(categoryTotals[Sasp_Categories.XT].discountPct * 100))
-) {
-
-saspStatus = determineSaspStatus(overage, categoryTotals, Sasp_Categories);
-}
-
-// populate quote with calculated SASP values
-populateSaspTotalsOnQuote(quote, saspStatus, categoryTotals);
-}
-
-/*
-* Calculate SASP overage and ReAllocation
-* @param {*} categoryTotals: categoryTotals map containing quoteline fields used for SASP calculations
-* @param {*} Sasp_Categories: Constant map of type of product family
-* CR-021252 : Calculate reallocation amount if required for different categories of product
-*/
-function calculateSaspOverage(categoryTotals, Sasp_Categories) {
-const categoryThresholds = {
-[Sasp_Categories.SAAS]: { low: 0.3, high: 0.15 },
-[Sasp_Categories.LAAS]: { low: 0.26, high: 0.13 }
-};
-
-let overage = 0.0;
-let lowDiscount;
-let targetSaasAmt = 0;
-let targetLaasAmt = 0;
-
-let potSaasReallocation = 0.0;
-let potLaasReallocation = 0;
-let potHsaasReallocation = 0;
-let potXTReallocation = 0;
-
-let totalNonSaas = 0;
-let totalPotential = 0;
-let saasReallocationNeeded = 0;
-let laasReallocationNeeded = 0;
-let totalReallocationNeeded = 0;
-
-let saasReallocation = 0;
-let laasReallocation = 0;
-let hsaasReallocation = 0;
-let xtReallocation = 0;
 
 
-if (categoryTotals[Sasp_Categories.SAAS]) {
-lowDiscount = categoryTotals[Sasp_Categories.SAAS]["total"] *
-categoryThresholds[Sasp_Categories.SAAS]["low"];
-categoryTotals[Sasp_Categories.SAAS]["total"] *
-categoryThresholds[Sasp_Categories.SAAS]["high"];
-
-if (categoryTotals[Sasp_Categories.SAAS]["discount"] > lowDiscount) {
-targetSaasAmt = categoryTotals[Sasp_Categories.SAAS]["total"] * (1 - categoryThresholds[Sasp_Categories.SAAS]["high"]);
-if (targetSaasAmt > 0) {
-saasReallocationNeeded = targetSaasAmt - categoryTotals[Sasp_Categories.SAAS]["netTotal"];
-totalReallocationNeeded += saasReallocationNeeded;
-overage += targetSaasAmt - categoryTotals[Sasp_Categories.SAAS]["netTotal"];
-}
-}
-}
-
-// if LaaS exists calculate the threshold for minimum price & the median discount price
-if (categoryTotals[Sasp_Categories.LAAS]) {
-lowDiscount = categoryTotals[Sasp_Categories.LAAS]["total"] *
-categoryThresholds[Sasp_Categories.LAAS]["low"];
-categoryTotals[Sasp_Categories.LAAS]["total"] *
-categoryThresholds[Sasp_Categories.LAAS]["high"];
-
-if (categoryTotals[Sasp_Categories.LAAS]["discount"] > lowDiscount) {
-targetLaasAmt = categoryTotals[Sasp_Categories.LAAS]["total"] * (1 - categoryThresholds[Sasp_Categories.LAAS]["high"]);
-if (targetLaasAmt > 0){
-laasReallocationNeeded = targetLaasAmt - categoryTotals[Sasp_Categories.LAAS]["netTotal"];
-totalReallocationNeeded += laasReallocationNeeded;
-overage += targetLaasAmt - categoryTotals[Sasp_Categories.LAAS]["netTotal"];
-}
-}
-}
-
-if(totalReallocationNeeded > 0){
-if(categoryTotals[Sasp_Categories.SAAS])
-categoryTotals[Sasp_Categories.SAAS]["allocationPct"] = saasReallocationNeeded > 0 ? saasReallocationNeeded/totalReallocationNeeded : 0;
-if(categoryTotals[Sasp_Categories.LAAS])
-categoryTotals[Sasp_Categories.LAAS]["allocationPct"] = laasReallocationNeeded > 0 ? laasReallocationNeeded/totalReallocationNeeded : 0;
-}
-
-if(categoryTotals[Sasp_Categories.LAAS]){
-if(targetLaasAmt > 0){
-potLaasReallocation = 0;
-}
-else {
-potLaasReallocation = categoryTotals[Sasp_Categories.LAAS]["netTotal"] - (categoryTotals[Sasp_Categories.LAAS]["total"] * (1-categoryThresholds[Sasp_Categories.LAAS]["low"]));
-categoryTotals[Sasp_Categories.LAAS]["potReallocation"] = potLaasReallocation;
-totalPotential += potLaasReallocation;
-}
-}
-
-if(categoryTotals[Sasp_Categories.SAAS]){
-if(targetSaasAmt > 0){
-potSaasReallocation = 0;
-}
-else {
-potSaasReallocation = categoryTotals[Sasp_Categories.SAAS]["netTotal"] - (categoryTotals[Sasp_Categories.SAAS]["total"] * (1-categoryThresholds[Sasp_Categories.SAAS]["low"]));
-categoryTotals[Sasp_Categories.SAAS]["potReallocation"] = potSaasReallocation;
-totalPotential += potSaasReallocation;
-}
-}
-
-//Calculate HSaas potential reallocation and reallocatted amount
-if (categoryTotals[Sasp_Categories.HSAAS]) {
-potHsaasReallocation = categoryTotals[Sasp_Categories.HSAAS]["netTotal"];
-categoryTotals[Sasp_Categories.HSAAS]["potReallocation"] = potHsaasReallocation;
-totalNonSaas += potHsaasReallocation;
-totalPotential += potHsaasReallocation;
-}
-
-//Calculate XT potential reallocation and reallocatted amount
-if (categoryTotals[Sasp_Categories.XT]) {
-potXTReallocation = categoryTotals[Sasp_Categories.XT]["netTotal"];
-categoryTotals[Sasp_Categories.XT]["potReallocation"] = potXTReallocation;
-totalNonSaas += potXTReallocation;
-totalPotential += potXTReallocation;
-
-if(totalNonSaas < totalReallocationNeeded){
-xtReallocation = -potXTReallocation;
-categoryTotals[Sasp_Categories.XT]["reallocation"] = xtReallocation;
-}
-else {
-xtReallocation = -1 * ((potXTReallocation/totalNonSaas) * totalReallocationNeeded);
-categoryTotals[Sasp_Categories.XT]["reallocation"] = xtReallocation;
-}
-}
-
-if (categoryTotals[Sasp_Categories.HSAAS]) {
-if(totalNonSaas < totalReallocationNeeded){
-hsaasReallocation = -potHsaasReallocation;
-categoryTotals[Sasp_Categories.HSAAS]["reallocation"] = hsaasReallocation;
-}
-else {
-hsaasReallocation = -1 * ((potHsaasReallocation/totalNonSaas) * totalReallocationNeeded);
-categoryTotals[Sasp_Categories.HSAAS]["reallocation"] = hsaasReallocation;
-}
-}
-
-if(categoryTotals[Sasp_Categories.LAAS]){
-if(laasReallocationNeeded > 0){
-if(totalPotential < totalReallocationNeeded){
-laasReallocation = categoryTotals[Sasp_Categories.LAAS].allocationPct * totalPotential;
-categoryTotals[Sasp_Categories.LAAS]["reallocation"] = laasReallocation;
-}else {
-laasReallocation = laasReallocationNeeded;
-categoryTotals[Sasp_Categories.LAAS]["reallocation"] = laasReallocation;
-}
-}else {
-if(potLaasReallocation > 0 && totalNonSaas <= totalReallocationNeeded){
-if(potLaasReallocation < (totalReallocationNeeded - totalNonSaas)){
-
-laasReallocation = -potLaasReallocation;
-categoryTotals[Sasp_Categories.LAAS]["reallocation"] = laasReallocation;
-}
-}
-else {
-laasReallocation = 0;
-categoryTotals[Sasp_Categories.LAAS]["reallocation"] = laasReallocation;
-}
-}
-}
-
-if(categoryTotals[Sasp_Categories.SAAS] ){
-if(saasReallocationNeeded > 0){
-if(totalPotential < totalReallocationNeeded){
-saasReallocation = categoryTotals[Sasp_Categories.SAAS].allocationPct * totalPotential;
-categoryTotals[Sasp_Categories.SAAS]["reallocation"] = saasReallocation;
-}else {
-saasReallocation = saasReallocationNeeded;
-categoryTotals[Sasp_Categories.SAAS]["reallocation"] = saasReallocation;
-}
-}else {
-if(potSaasReallocation > 0 && totalNonSaas <= totalReallocationNeeded){
-if(potSaasReallocation > totalReallocationNeeded - totalNonSaas){
-saasReallocation = -1 * (laasReallocation + hsaasReallocation + xtReallocation);
-categoryTotals[Sasp_Categories.SAAS]["reallocation"] = saasReallocation;
-}
-else {
-saasReallocation = -potSaasReallocation;
-categoryTotals[Sasp_Categories.SAAS]["reallocation"] = saasReallocation;
-}
-}
-else {
-saasReallocation = 0;
-categoryTotals[Sasp_Categories.SAAS]["reallocation"] = saasReallocation;
-}
-}
-}
-
-if(categoryTotals[Sasp_Categories.LAAS]) {
-if(laasReallocationNeeded == 0 && potLaasReallocation > 0 && totalNonSaas <= totalReallocationNeeded && potLaasReallocation > (totalReallocationNeeded - totalNonSaas)){
-
-laasReallocation = -1 * (saasReallocation + hsaasReallocation + xtReallocation);
-categoryTotals[Sasp_Categories.LAAS]["reallocation"] = laasReallocation;
-}
-}
-
-return overage;
-}
 
 
-/*
-* Determines the required SASP status value to populate on Quote based on SASP calculations
-* @param {*} overage: Total reallocation amount required
-* @param {*} categoryTotals: categoryTotals map used for SASP calculations
-
-* @returns
-*/
-function determineSaspStatus(overage, categoryTotals, Sasp_Categories) {
-let saspStatus;
-
-// if total # of sasp categories is 1, only single SASP violation exists
-// CR-022022: Wrong status as categoryTotals.length not working
-if (overage > 0 && Object.keys(categoryTotals).length === 1) {
-saspStatus = "Single PoB SASP violation";
 
 
-} else if (
-overage > 0 &&
-!categoryTotals[Sasp_Categories.HSAAS] &&
-!categoryTotals[Sasp_Categories.XT]
-) {
-saspStatus = "Multi PoB SASP violations";
-} else {
-// check if xt
-let discountsEqualized = true;
-if (
-categoryTotals[Sasp_Categories.HSAAS] &&
-categoryTotals[Sasp_Categories.XT] &&
-Math.round(categoryTotals[Sasp_Categories.HSAAS]["discountPct"] * 100) !==
-Math.round(categoryTotals[Sasp_Categories.XT]["discountPct"] * 100)
-) {
-discountsEqualized = false;
-}
-
-// set status for multi sasp violation with potential reallocation
-if (discountsEqualized) {
-saspStatus = "Multi PoB SASP violations, potential SASP reallocation";
-
-// set status for multi sasp violation with both potential reallocation and equalization needed
-} else {
-// if there is no overage, only potential discount equalization & reallocation is needed with no violations
-if (overage === 0) {
-saspStatus = "Potential discount equalization";
-}
-// if the total reallocation for either SaaS or LaaS is equal to the overage, single SASP violation
-else if (
-(categoryTotals[Sasp_Categories.SAAS] &&
-categoryTotals[Sasp_Categories.SAAS]["potReallocation"] == overage) ||
-(categoryTotals[Sasp_Categories.LAAS] &&
-categoryTotals[Sasp_Categories.LAAS]["potReallocation"] == overage)
-) {
-saspStatus =
-"Single PoB SASP violation, potential discount equalization";
-
-// otherwise multiple SASP violations with both equalization and reallocation
-} else {
-saspStatus =
-"Multi PoB SASP violations, potential SASP reallocation, potential discount equalization";
-}
-}
-}
-
-return saspStatus;
-}
-
-/**
-* Populate SASP calculated values on Quote
-* @param {*} quote: quote model provided by CPQ
-* @param {*} saspStatus: determined SASP staus field
-* @param {*} categoryTotals: categoryTotals map used for SASP calculations
-*/
-function populateSaspTotalsOnQuote(quote, saspStatus, categoryTotals) {
-
-// CR-14941 - added term to categoryToFieldMap
-// map to enable looping over totals to populate fields dynamically during execution
-const categoryToField = {
-total: {
-SaaS: "SaaS_Total__c",
-LaaS: "LaaS_Total__c",
-HSaaS: "HSaaS_Total__c",
-XT: "XT_Total__c"
-},
-netTotal: {
-SaaS: "SaaS_Net_Total__c",
-LaaS: "LaaS_Net_Total__c",
-HSaaS: "HSaaS_Net_Total__c",
-XT: "XT_Net_Total__c",
-//CR-034653
-ExtendedPerpetual: "Extended_Perpetual_Net_Total__c",
-Maintenance: "Maintenance_net_total__c",
-OnPremSub: "On_Prem_Subscription_Net_Total__c"
-},
-discountPct: {
-SaaS: "SaaS_Discount__c",
-LaaS: "LaaS_Discount__c",
-HSaaS: "HSaaS_Discount__c",
-XT: "XT_Discount__c"
-},
-potReallocation: {
-SaaS: "SaaS_Potential_Reallocation__c",
-LaaS: "LaaS_Potential_Reallocation__c",
-HSaaS: "HSaaS_Potential_Reallocation__c",
-XT: "XT_Potential_Reallocation__c"
-},
-
-reallocation: {
-SaaS: "Saas_Reallocation_Amount__c",
-LaaS: "Laas_Reallocation_Amount__c",
-HSaaS: "HSaas_Reallocation_Amount__c",
-XT: "XT_Reallocation_Amount__c"
-},
-postReallocation: {
-SaaS: "SaaS_Post_Reallocation__c",
-LaaS: "LaaS_Post_Reallocation__c",
-HSaaS: "HSaaS_Post_Reallocation__c",
-XT: "XT_Post_Reallocation__c"
-},
-term: {
-SaaS: "SaaS_Term__c",
-LaaS: "LaaS_Term__c",
-HSaaS: "HSaaS_Term__c",
-XT: "XT_Term__c"
-}
-};
-
-// reset quote values to populate with any new values
-for (const fieldType in categoryToField) {
-for (const key in categoryToField[fieldType]) {
-let fieldName = categoryToField[fieldType][key];
-quote.record[fieldName] = 0.0;
-}
-}
-
-// populate values for each relevant SASP category field
-for (const fieldType in categoryToField) {
-for (const key in categoryTotals) {
-if (fieldType === "postReallocation") {
-quote.record[categoryToField[fieldType][key]] =
-categoryTotals[key]["netTotal"] + categoryTotals[key]["reallocation"];
-} else if (fieldType === "discountPct") {
-quote.record[categoryToField[fieldType][key]] =
-categoryTotals[key][fieldType] * 100;
-} else {
-quote.record[categoryToField[fieldType][key]] =
-categoryTotals[key][fieldType]; // populate corresponding SASP category totals on quote category fields
-}
-}
-}
-
-// populate SASP Type on quote to indicate required re-allocation/equalization needs
-quote.record["SASP_Type__c"] = saspStatus;
-}
 /**
 
 * Aggregates SASP category totals and calculates values required for SASP validations. Ticket 027240
