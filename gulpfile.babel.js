@@ -35,14 +35,9 @@ gulp.task('buildDev', function(cb) {
         .then((resp) => { cb(null); }, (err) => { cb(err) })
 })
 
-gulp.task('copy', function(cb) {
-    migrate.copyBundle()
-        .then((resp) => { cb(null); }, (err) => { cb(err) })
-})
-
 gulp.task('minify', function(cb) {
     migrate.minify()
         .then((resp) => { cb(null); }, (err) => { cb(err) })
 })
 
-gulp.task('buildAll', gulp.series('build', 'copy', 'minify'))
+gulp.task('buildAll', gulp.series('build', 'minify'))
